@@ -11,21 +11,20 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 
+halo2-base = { version = "0.4.1", default-features = false, features = [
+    "halo2-pse",
+    "display",
+], git = "https://github.com/axiom-crypto/halo2-lib.git", rev = "a2a548b" }
 half = "2.2.0"
-halo2-base = { version = "0.2.2", default-features = false, features = [
+halo2curves = "0.7.0"
+halo2-ecc = { version = "0.4.1", default-features = false, features = [
     "halo2-pse",
     "display",
-], git = "https://github.com/axiom-crypto/halo2-lib.git", rev = "9860acc" }
-halo2curves = "0.6.0"
-halo2-dynamic-sha256 = { git = "https://github.com/zkemail/halo2-dynamic-sha256.git", version = "0.1.0", branch = "main", optional = true }
-halo2-ecc = { version = "0.2.2", default-features = false, features = [
-    "halo2-pse",
-    "display",
-], git = "https://github.com/axiom-crypto/halo2-lib.git", rev = "9860acc" }
+], git = "https://github.com/axiom-crypto/halo2-lib.git", rev = "a2a548b" }
 num-bigint = { version = "0.4", features = ["rand"] }
 num-traits = "0.2.15"
 plonk = "0.0.0"
-poseidon = {git = "https://github.com/privacy-scaling-explorations/poseidon.git", branch = "main"}
+poseidon = { git = "https://github.com/privacy-scaling-explorations/poseidon.git", branch = "main" }
 rand = "0.8.5"
 rsa = { version = "0.9.6", features = ["serde", "sha2"] }
 sha2 = "0.10.6"
@@ -36,6 +35,3 @@ criterion = "0.4"
 rand_core = { version = "0.6", default-features = false }
 paste = "1.0.7"
 
-[features]
-default = ["sha256"]
-sha256 = ["halo2-dynamic-sha256"]
