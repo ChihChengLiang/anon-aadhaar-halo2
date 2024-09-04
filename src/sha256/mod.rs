@@ -6,32 +6,22 @@ pub use compression::*;
 use crate::PrimeField;
 use generic_array::GenericArray;
 use halo2_base::halo2_proofs::{
-    circuit::{AssignedCell, Cell, Layouter, Region, SimpleFloorPlanner, Value},
-    plonk::{
-        Advice, Circuit, Column, ConstraintSystem, Error, Expression, Fixed, Selector, TableColumn,
-        VirtualCells,
-    },
-    poly::Rotation,
+    circuit::{Layouter, Region, Value},
+    plonk::{Circuit, ConstraintSystem, Error},
 };
-use halo2_base::utils::fe_to_bigint;
 use halo2_base::ContextParams;
 use halo2_base::QuantumCell;
 use halo2_base::{
-    gates::{flex_gate::FlexGateConfig, range::RangeConfig, GateInstructions, RangeInstructions},
-    utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint, modulus},
+    gates::{range::RangeConfig, GateInstructions, RangeInstructions},
     AssignedValue, Context,
 };
-use hex;
+
 use itertools::Itertools;
 use sha2::{compress256, digest::generic_array, Digest, Sha256};
 use spread::SpreadConfig;
 
-// const Sha256BitChipRowPerRound: usize = 72;
-// const BLOCK_BYTE: usize = 64;
-// const DIGEST_BYTE: usize = 32;
-
 #[derive(Debug, Clone)]
-pub struct AssignedHashResult<'a, F: PrimeField> {
+pub struct AssignedHashResult<F: PrimeField> {
     pub input_len: AssignedValue<F>,
     pub input_bytes: Vec<AssignedValue<F>>,
     pub output_bytes: Vec<AssignedValue<F>>,
@@ -72,10 +62,10 @@ impl<F: PrimeField> Sha256DynamicConfig<F> {
 
     pub fn digest<'a, 'b: 'a>(
         &'a mut self,
-        ctx: &mut Context<'b, F>,
+        ctx: &mut Context<F>,
         input: &'a [u8],
         precomputed_input_len: Option<usize>,
-    ) -> Result<AssignedHashResult<'b, F>, Error> {
+    ) -> Result<AssignedHashResult<F>, Error> {
         let input_byte_size = input.len();
         let input_byte_size_with_9 = input_byte_size + 9;
         let one_round_size = Self::ONE_ROUND_INPUT_BYTES;
@@ -165,10 +155,6 @@ impl<F: PrimeField> Sha256DynamicConfig<F> {
             .iter()
             .map(|state| gate.load_witness(ctx, Value::known(F::from(*state as u64))))
             .collect_vec()];
-        // vec![INIT_STATE
-        //     .iter()
-        //     .map(|h| gate.load_constant(ctx, F::from(*h as u64)))
-        //     .collect::<Vec<AssignedValue<F>>>()];
         let assigned_input_bytes = padded_inputs[precomputed_input_len..]
             .iter()
             .map(|byte| gate.load_witness(ctx, Value::known(F::from(*byte as u64))))
@@ -190,108 +176,9 @@ impl<F: PrimeField> Sha256DynamicConfig<F> {
                 &assigned_last_state_vec.last().unwrap(),
             )?;
 
-            // let (witness, next_hs) = sha2_comp_config.compute_witness(
-            //     &padded_inputs[num_processed_input..(num_processed_input + one_round_size)],
-            //     last_hs,
-            // );
-
-            // last_hs = next_hs;
-            // let mut assigned_rows: Sha256AssignedRows<F> =
-            //     Sha256AssignedRows::<F>::new(self.num_consumed_rows);
-            // sha2_comp_config.assign_witness(&mut ctx.region, &witness, &mut assigned_rows)?;
-            // let assigned_h_ins: Vec<Vec<AssignedCell<F, F>>> = assigned_rows.get_h_ins();
-            // debug_assert_eq!(assigned_h_ins.len(), 1);
-            // let assigned_h_outs: Vec<Vec<AssignedCell<F, F>>> = assigned_rows.get_h_outs();
-            // debug_assert_eq!(assigned_h_outs.len(), 1);
-            // let assigned_input_words = assigned_rows.get_input_words();
-            // debug_assert_eq!(assigned_input_words.len(), 1);
-
-            // 1. Constrain input bytes.
-            // for word_idx in 0..16 {
-            //     let assigned_input_u32 =
-            //         &assigned_input_word_at_round[4 * word_idx..4 * (word_idx + 1)];
-            //     let mut sum = gate.load_zero(ctx);
-            //     for (idx, assigned_byte) in assigned_input_u32.iter().enumerate() {
-            //         sum = gate.mul_add(
-            //             ctx,
-            //             QuantumCell::Existing(assigned_byte),
-            //             QuantumCell::Constant(F::from(1u64 << (8 * idx))),
-            //             QuantumCell::Existing(&sum),
-            //         );
-            //     }
-            //     ctx.region
-            //         .constrain_equal(sum.cell(), assigned_input_words[0][word_idx].cell())?;
-            // }
-            // 2. Constrain the previous h_out == current h_in.
-            // for (h_out, h_in) in assigned_last_hs_vec[assigned_last_hs_vec.len() - 1]
-            //     .iter()
-            //     .zip(assigned_h_ins[0].iter())
-            // {
-            //     ctx.region.constrain_equal(h_out.cell(), h_in.cell())?;
-            // }
-            // 3. Push the current h_out to assigned_last_hs_vec.
-            // let mut new_assigned_hs_out = vec![];
-            // for h_out in assigned_h_outs[0].iter() {
-            //     let assigned_on_gate = self.assigned_cell2value(ctx, h_out)?;
-            //     new_assigned_hs_out.push(assigned_on_gate)
-            // }
             assigned_last_state_vec.push(new_assigned_hs_out);
             num_processed_input += one_round_size;
         }
-
-        // for n_column in 0..num_column {
-        //     let sha2_comp_config = &self.sha256_comp_configs[n_column];
-        //     for n_round in 0..num_round_per_column {
-        //         let round_idx = n_column * num_round_per_column + n_round;
-        //         let (witness, next_hs) = sha2_comp_config.compute_witness(
-        //             &padded_inputs[round_idx * one_round_size..(round_idx + 1) * one_round_size],
-        //             last_hs,
-        //         );
-        //         last_hs = next_hs;
-        //         let mut assigned_rows = Sha256AssignedRows::<F>::new(
-        //             n_round * Sha256CompressionConfig::<F>::ROWS_PER_BLOCK,
-        //         );
-        //         sha2_comp_config.assign_witness(&mut ctx.region, &witness, &mut assigned_rows)?;
-        //         let assigned_h_ins = assigned_rows.get_h_ins();
-        //         debug_assert_eq!(assigned_h_ins.len(), 1);
-        //         let assigned_h_outs = assigned_rows.get_h_outs();
-        //         debug_assert_eq!(assigned_h_outs.len(), 1);
-        //         let assigned_input_words = assigned_rows.get_input_words();
-        //         debug_assert_eq!(assigned_input_words.len(), 1);
-        //         let assigned_input_word_at_round = &assigned_input_bytes
-        //             [round_idx * one_round_size..(round_idx + 1) * one_round_size];
-        //         // 1. Constrain input bytes.
-        //         for word_idx in 0..16 {
-        //             let assigned_input_u32 =
-        //                 &assigned_input_word_at_round[4 * word_idx..4 * (word_idx + 1)];
-        //             let mut sum = gate.load_zero(ctx);
-        //             for (idx, assigned_byte) in assigned_input_u32.iter().enumerate() {
-        //                 sum = gate.mul_add(
-        //                     ctx,
-        //                     QuantumCell::Existing(assigned_byte),
-        //                     QuantumCell::Constant(F::from(1u64 << (8 * idx))),
-        //                     QuantumCell::Existing(&sum),
-        //                 );
-        //             }
-        //             ctx.region
-        //                 .constrain_equal(sum.cell(), assigned_input_words[0][word_idx].cell())?;
-        //         }
-        //         // 2. Constrain the previous h_out == current h_in.
-        //         for (h_out, h_in) in assigned_last_hs_vec[assigned_last_hs_vec.len() - 1]
-        //             .iter()
-        //             .zip(assigned_h_ins[0].iter())
-        //         {
-        //             ctx.region.constrain_equal(h_out.cell(), h_in.cell())?;
-        //         }
-        //         // 3. Push the current h_out to assigned_last_hs_vec.
-        //         let mut new_assigned_hs_out = vec![];
-        //         for h_out in assigned_h_outs[0].iter() {
-        //             let assigned_on_gate = self.assigned_cell2value(ctx, h_out)?;
-        //             new_assigned_hs_out.push(assigned_on_gate)
-        //         }
-        //         assigned_last_hs_vec.push(new_assigned_hs_out);
-        //     }
-        // }
 
         let zero = gate.load_zero(ctx);
         let mut output_h_out = vec![zero; 8];
@@ -350,7 +237,7 @@ impl<F: PrimeField> Sha256DynamicConfig<F> {
         Ok(result)
     }
 
-    pub fn new_context<'a, 'b>(&'b self, region: Region<'a, F>) -> Context<'a, F> {
+    pub fn new_context<'a, 'b>(&'b self, region: Region<'a, F>) -> Context<F> {
         Context::new(
             region,
             ContextParams {
@@ -372,8 +259,6 @@ impl<F: PrimeField> Sha256DynamicConfig<F> {
 
 #[cfg(test)]
 mod test {
-    use std::marker::PhantomData;
-
     use super::*;
     use halo2_base::halo2_proofs::{
         circuit::{Cell, Layouter, Region, SimpleFloorPlanner},
@@ -382,10 +267,9 @@ mod test {
         plonk::{Circuit, ConstraintSystem, Instance},
     };
     use halo2_base::{gates::range::RangeStrategy::Vertical, ContextParams, SKIP_FIRST_PASS};
-
-    use num_bigint::RandomBits;
-    use rand::rngs::OsRng;
+    use hex;
     use rand::{thread_rng, Rng};
+    use std::marker::PhantomData;
 
     #[derive(Debug, Clone)]
     struct TestConfig<F: PrimeField> {

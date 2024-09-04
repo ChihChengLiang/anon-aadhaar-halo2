@@ -1,37 +1,25 @@
-use crate::spread::SpreadConfig;
-use crate::utils::{bits_le_to_fe, fe_to_bits_le};
+use super::spread::SpreadConfig;
+use super::utils::{bits_le_to_fe, fe_to_bits_le};
+use crate::PrimeField;
 use halo2_base::halo2_proofs::halo2curves::FieldExt;
-use halo2_base::halo2_proofs::{
-    circuit::{AssignedCell, Cell, Layouter, Region, SimpleFloorPlanner, Value},
-    plonk::{
-        Advice, Circuit, Column, ConstraintSystem, Error, Expression, Fixed, Selector, TableColumn,
-        VirtualCells,
-    },
-    poly::Rotation,
-};
-use halo2_base::utils::fe_to_bigint;
-use halo2_base::ContextParams;
+use halo2_base::halo2_proofs::{circuit::Value, plonk::Error};
 use halo2_base::QuantumCell;
 use halo2_base::{
     gates::{flex_gate::FlexGateConfig, range::RangeConfig, GateInstructions, RangeInstructions},
-    utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint, modulus, PrimeField},
     AssignedValue, Context,
 };
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
-// const BLOCK_BYTE: usize = 64;
-// const DIGEST_BYTE: usize = 32;
-
-pub type SpreadU32<'a, F> = (AssignedValue<'a, F>, AssignedValue<'a, F>);
+pub type SpreadU32<'a, F> = (AssignedValue<F>, AssignedValue<F>);
 
 pub fn sha256_compression<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
     spread_config: &mut SpreadConfig<F>,
-    assigned_input_bytes: &[AssignedValue<'a, F>],
-    pre_state_words: &[AssignedValue<'a, F>],
-) -> Result<Vec<AssignedValue<'a, F>>, Error> {
+    assigned_input_bytes: &[AssignedValue<F>],
+    pre_state_words: &[AssignedValue<F>],
+) -> Result<Vec<AssignedValue<F>>, Error> {
     debug_assert_eq!(assigned_input_bytes.len(), 64);
     debug_assert_eq!(pre_state_words.len(), 8);
     let gate = range.gate();
@@ -50,15 +38,10 @@ pub fn sha256_compression<'a, 'b: 'a, F: PrimeField>(
                 );
             }
             i += 1;
-            // println!("idx {} sum {:?}", i, sum.value());
             sum
         })
         .collect_vec();
 
-    // let mut message_bits = message_u32s
-    //     .iter()
-    //     .map(|val: &AssignedValue<F>| gate.num_to_bits(ctx, val, 32))
-    //     .collect_vec();
     let mut message_spreads = message_u32s
         .iter()
         .map(|dense| state_to_spread_u32(ctx, range, spread_config, dense))
@@ -88,20 +71,10 @@ pub fn sha256_compression<'a, 'b: 'a, F: PrimeField>(
             );
             mod_u32(ctx, &range, &sum)
         };
-        // println!(
-        //     "idx {} term1 {:?}, term3 {:?}, new_w {:?}",
-        //     idx,
-        //     term1.value(),
-        //     term3.value(),
-        //     new_w.value()
-        // );
+
         message_u32s.push(new_w.clone());
         let new_w_spread = state_to_spread_u32(ctx, range, spread_config, &new_w)?;
         message_spreads.push(new_w_spread);
-        // if idx <= 61 {
-        //     let new_w_bits = gate.num_to_bits(ctx, &new_w, 32);
-        //     message_bits.push(new_w_bits);
-        // }
     }
 
     // compression
@@ -209,12 +182,6 @@ pub fn sha256_compression<'a, 'b: 'a, F: PrimeField>(
         .zip(pre_state_words.iter())
         .map(|(x, y)| {
             let add = gate.add(ctx, QuantumCell::Existing(&x), QuantumCell::Existing(&y));
-            // println!(
-            //     "pre {:?} new {:?} add {:?}",
-            //     y.value(),
-            //     x.value(),
-            //     add.value()
-            // );
             mod_u32(ctx, range, &add)
         })
         .collect_vec();
@@ -222,7 +189,7 @@ pub fn sha256_compression<'a, 'b: 'a, F: PrimeField>(
 }
 
 fn state_to_spread_u32<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
     spread_config: &mut SpreadConfig<F>,
     x: &AssignedValue<F>,
@@ -254,29 +221,11 @@ fn state_to_spread_u32<'a, 'b: 'a, F: PrimeField>(
     Ok((lo_spread, hi_spread))
 }
 
-// fn bits2u32<'a, 'b: 'a, F: FieldExt>(
-//     ctx: &mut Context<'b, F>,
-//     gate: &FlexGateConfig<F>,
-//     bits: &[AssignedValue<'a, F>],
-// ) -> AssignedValue<'a, F> {
-//     debug_assert_eq!(bits.len(), 32);
-//     let mut sum = gate.load_zero(ctx);
-//     for idx in 0..32 {
-//         sum = gate.mul_add(
-//             ctx,
-//             QuantumCell::Existing(&bits[idx]),
-//             QuantumCell::Constant(F::from(1u64 << idx)),
-//             QuantumCell::Existing(&sum),
-//         );
-//     }
-//     sum
-// }
-
 fn mod_u32<'a, 'b: 'a, F: FieldExt>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
-    x: &AssignedValue<'a, F>,
-) -> AssignedValue<'a, F> {
+    x: &AssignedValue<F>,
+) -> AssignedValue<F> {
     let gate = range.gate();
     let lo = x
         .value()
@@ -304,13 +253,13 @@ fn mod_u32<'a, 'b: 'a, F: FieldExt>(
 }
 
 fn ch<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
     spread_config: &mut SpreadConfig<F>,
     x: &SpreadU32<'a, F>,
     y: &SpreadU32<'a, F>,
     z: &SpreadU32<'a, F>,
-) -> Result<AssignedValue<'a, F>, Error> {
+) -> Result<AssignedValue<F>, Error> {
     let (x_lo, x_hi) = x;
     let (y_lo, y_hi) = y;
     let (z_lo, z_hi) = z;
@@ -429,67 +378,14 @@ fn ch<'a, 'b: 'a, F: PrimeField>(
     Ok(out)
 }
 
-// fn ch<'a, 'b: 'a, F: FieldExt>(
-//     ctx: &mut Context<'b, F>,
-//     gate: &FlexGateConfig<F>,
-//     x_bits: &[AssignedValue<'a, F>],
-//     y_bits: &[AssignedValue<'a, F>],
-//     z_bits: &[AssignedValue<'a, F>],
-// ) -> Vec<AssignedValue<'a, F>> {
-//     debug_assert_eq!(x_bits.len(), 32);
-//     debug_assert_eq!(y_bits.len(), 32);
-//     debug_assert_eq!(z_bits.len(), 32);
-
-//     // reference: https://github.com/iden3/circomlib/blob/v0.2.4/circuits/sha256/ch.circom
-//     let y_sub_z = y_bits
-//         .iter()
-//         .zip(z_bits.iter())
-//         .map(|(y, z)| gate.sub(ctx, QuantumCell::Existing(&y), QuantumCell::Existing(&z)))
-//         .collect_vec();
-//     x_bits
-//         .iter()
-//         .zip(y_sub_z.iter())
-//         .zip(z_bits.iter())
-//         .map(|((x, y), z)| {
-//             gate.mul_add(
-//                 ctx,
-//                 QuantumCell::Existing(&x),
-//                 QuantumCell::Existing(&y),
-//                 QuantumCell::Existing(&z),
-//             )
-//         })
-//         .collect_vec()
-
-//     // let x_y = x_bits
-//     //     .iter()
-//     //     .zip(y_bits.iter())
-//     //     .map(|(x, y)| gate.and(ctx, QuantumCell::Existing(&x), QuantumCell::Existing(&y)))
-//     //     .collect_vec();
-//     // let not_x_z = x_bits
-//     //     .iter()
-//     //     .zip(z_bits.iter())
-//     //     .map(|(x, z)| {
-//     //         let not_x = gate.not(ctx, QuantumCell::Existing(&x));
-//     //         gate.and(
-//     //             ctx,
-//     //             QuantumCell::Existing(&not_x),
-//     //             QuantumCell::Existing(&z),
-//     //         )
-//     //     })
-//     //     .collect_vec();
-//     // x_y.iter()
-//     //     .zip(not_x_z.iter())
-//     //     .map(|(a, b)| xor(ctx, gate, a, b))
-//     //     .collect_vec()
-
 fn maj<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
     spread_config: &mut SpreadConfig<F>,
     x: &SpreadU32<'a, F>,
     y: &SpreadU32<'a, F>,
     z: &SpreadU32<'a, F>,
-) -> Result<AssignedValue<'a, F>, Error> {
+) -> Result<AssignedValue<F>, Error> {
     let (x_lo, x_hi) = x;
     let (y_lo, y_hi) = y;
     let (z_lo, z_hi) = z;
@@ -552,84 +448,22 @@ fn maj<'a, 'b: 'a, F: PrimeField>(
 }
 
 fn three_add<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     gate: &FlexGateConfig<F>,
-    x: QuantumCell<'a, 'a, F>,
-    y: QuantumCell<'a, 'a, F>,
-    z: QuantumCell<'a, 'a, F>,
-) -> AssignedValue<'a, F> {
+    x: QuantumCell<F>,
+    y: QuantumCell<F>,
+    z: QuantumCell<F>,
+) -> AssignedValue<F> {
     let add1 = gate.add(ctx, x, y);
     gate.add(ctx, QuantumCell::Existing(&add1), z)
 }
 
-// fn maj<'a, 'b: 'a, F: FieldExt>(
-//     ctx: &mut Context<'b, F>,
-//     gate: &FlexGateConfig<F>,
-//     x_bits: &[AssignedValue<'a, F>],
-//     y_bits: &[AssignedValue<'a, F>],
-//     z_bits: &[AssignedValue<'a, F>],
-// ) -> Vec<AssignedValue<'a, F>> {
-//     debug_assert_eq!(x_bits.len(), 32);
-//     debug_assert_eq!(y_bits.len(), 32);
-//     debug_assert_eq!(z_bits.len(), 32);
-//     // reference: https://github.com/iden3/circomlib/blob/v0.2.4/circuits/sha256/maj.circom
-//     let mid = y_bits
-//         .iter()
-//         .zip(z_bits.iter())
-//         .map(|(y, z)| gate.mul(ctx, QuantumCell::Existing(&y), QuantumCell::Existing(&z)))
-//         .collect_vec();
-//     (0..32)
-//         .map(|idx| {
-//             let add1 = gate.add(
-//                 ctx,
-//                 QuantumCell::Existing(&y_bits[idx]),
-//                 QuantumCell::Existing(&z_bits[idx]),
-//             );
-//             let add2 = gate.mul_add(
-//                 ctx,
-//                 QuantumCell::Existing(&mid[idx]),
-//                 QuantumCell::Constant(-F::from(2u64)),
-//                 QuantumCell::Existing(&add1),
-//             );
-//             gate.mul_add(
-//                 ctx,
-//                 QuantumCell::Existing(&x_bits[idx]),
-//                 QuantumCell::Existing(&add2),
-//                 QuantumCell::Existing(&mid[idx]),
-//             )
-//         })
-//         .collect_vec()
-//     // let x_y = x_bits
-//     //     .iter()
-//     //     .zip(y_bits.iter())
-//     //     .map(|(x, y)| gate.and(ctx, QuantumCell::Existing(&x), QuantumCell::Existing(&y)))
-//     //     .collect_vec();
-//     // let x_z = x_bits
-//     //     .iter()
-//     //     .zip(z_bits.iter())
-//     //     .map(|(x, z)| gate.and(ctx, QuantumCell::Existing(&x), QuantumCell::Existing(&z)))
-//     //     .collect_vec();
-//     // let y_z = y_bits
-//     //     .iter()
-//     //     .zip(z_bits.iter())
-//     //     .map(|(y, z)| gate.and(ctx, QuantumCell::Existing(&y), QuantumCell::Existing(&z)))
-//     //     .collect_vec();
-//     // let xor1 = x_y
-//     //     .iter()
-//     //     .zip(x_z.iter())
-//     //     .map(|(a, b)| xor(ctx, gate, a, b))
-//     //     .collect_vec();
-//     // xor1.iter()
-//     //     .zip(y_z.iter())
-//     //     .map(|(a, b)| xor(ctx, gate, a, b))
-//     //     .collect_vec()
-// }
 fn sigma_upper0<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
     spread_config: &mut SpreadConfig<F>,
     x_spread: &SpreadU32<F>,
-) -> Result<AssignedValue<'a, F>, Error> {
+) -> Result<AssignedValue<F>, Error> {
     const STARTS: [usize; 4] = [0, 2, 13, 22];
     const ENDS: [usize; 4] = [2, 13, 22, 32];
     const PADDINGS: [usize; 4] = [6, 5, 7, 6];
@@ -652,11 +486,11 @@ fn sigma_upper0<'a, 'b: 'a, F: PrimeField>(
 }
 
 fn sigma_upper1<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
     spread_config: &mut SpreadConfig<F>,
     x_spread: &SpreadU32<F>,
-) -> Result<AssignedValue<'a, F>, Error> {
+) -> Result<AssignedValue<F>, Error> {
     const STARTS: [usize; 4] = [0, 6, 11, 25];
     const ENDS: [usize; 4] = [6, 11, 25, 32];
     const PADDINGS: [usize; 4] = [2, 3, 2, 1];
@@ -679,11 +513,11 @@ fn sigma_upper1<'a, 'b: 'a, F: PrimeField>(
 }
 
 fn sigma_lower0<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
     spread_config: &mut SpreadConfig<F>,
     x_spread: &SpreadU32<F>,
-) -> Result<AssignedValue<'a, F>, Error> {
+) -> Result<AssignedValue<F>, Error> {
     const STARTS: [usize; 4] = [0, 3, 7, 18];
     const ENDS: [usize; 4] = [3, 7, 18, 32];
     const PADDINGS: [usize; 4] = [5, 4, 5, 2];
@@ -706,11 +540,11 @@ fn sigma_lower0<'a, 'b: 'a, F: PrimeField>(
 }
 
 fn sigma_lower1<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
     spread_config: &mut SpreadConfig<F>,
     x_spread: &SpreadU32<F>,
-) -> Result<AssignedValue<'a, F>, Error> {
+) -> Result<AssignedValue<F>, Error> {
     const STARTS: [usize; 4] = [0, 10, 17, 19];
     const ENDS: [usize; 4] = [10, 17, 19, 32];
     const PADDINGS: [usize; 4] = [6, 1, 6, 3];
@@ -733,7 +567,7 @@ fn sigma_lower1<'a, 'b: 'a, F: PrimeField>(
 }
 
 fn sigma_generic<'a, 'b: 'a, F: PrimeField>(
-    ctx: &mut Context<'b, F>,
+    ctx: &mut Context<F>,
     range: &RangeConfig<F>,
     spread_config: &mut SpreadConfig<F>,
     x_spread: &SpreadU32<F>,
@@ -741,7 +575,7 @@ fn sigma_generic<'a, 'b: 'a, F: PrimeField>(
     ends: &[usize; 4],
     paddings: &[usize; 4],
     coeffs: &[F; 4],
-) -> Result<AssignedValue<'a, F>, Error> {
+) -> Result<AssignedValue<F>, Error> {
     let gate = range.gate();
     // let x_spread = spread_config.spread(ctx, range, x)?;
     let bits_val = x_spread.0.value().zip(x_spread.1.value()).map(|(lo, hi)| {
@@ -921,112 +755,6 @@ fn sigma_generic<'a, 'b: 'a, F: PrimeField>(
     // println!("r {:?}", r.value());
     Ok(r)
 }
-
-// fn sigma_s_generic<'a, 'b: 'a, F: FieldExt>(
-//     ctx: &mut Context<'b, F>,
-//     gate: &FlexGateConfig<F>,
-//     x_bits: &[AssignedValue<'a, F>],
-//     n1: usize,
-//     n2: usize,
-//     n3: usize,
-// ) -> Vec<AssignedValue<'a, F>> {
-//     let rotr1 = rotr(ctx, gate, x_bits, n1);
-//     let rotr2 = rotr(ctx, gate, x_bits, n2);
-//     let shr = shr(ctx, gate, x_bits, n3);
-//     rotr1
-//         .iter()
-//         .zip(rotr2.iter())
-//         .zip(shr.iter())
-//         .map(|((a, b), c)| xor3(ctx, gate, a, b, c))
-//         .collect_vec()
-// }
-
-// fn rotr<'a, 'b: 'a, F: FieldExt>(
-//     ctx: &mut Context<'b, F>,
-//     gate: &FlexGateConfig<F>,
-//     x_bits: &[AssignedValue<'a, F>],
-//     n: usize,
-// ) -> Vec<AssignedValue<'a, F>> {
-//     debug_assert_eq!(x_bits.len(), 32);
-//     // reference: https://github.com/iden3/circomlib/blob/v0.2.4/circuits/sha256/rotate.circom
-//     (0..32)
-//         .map(|idx| x_bits[(idx + n) % 32].clone())
-//         .collect_vec()
-// }
-
-// fn shr<'a, 'b: 'a, F: FieldExt>(
-//     ctx: &mut Context<'b, F>,
-//     gate: &FlexGateConfig<F>,
-//     x_bits: &[AssignedValue<'a, F>],
-//     n: usize,
-// ) -> Vec<AssignedValue<'a, F>> {
-//     debug_assert_eq!(x_bits.len(), 32);
-//     // referece: https://github.com/iden3/circomlib/blob/v0.2.4/circuits/sha256/shift.circom
-//     let zero = gate.load_zero(ctx);
-//     (0..32)
-//         .map(|idx| {
-//             if idx + n >= 32 {
-//                 zero.clone()
-//             } else {
-//                 x_bits[idx + n].clone()
-//             }
-//         })
-//         .collect_vec()
-// }
-
-// fn left_shift<'a, 'b: 'a, F: FieldExt>(
-//     ctx: &mut Context<'b, F>,
-//     gate: &FlexGateConfig<F>,
-//     x_bits: &[AssignedValue<'a, F>],
-//     n: usize,
-// ) -> Vec<AssignedValue<'a, F>> {
-//     debug_assert_eq!(x_bits.len(), 32);
-//     let zero = gate.load_zero(ctx);
-//     let padding = (0..n).map(|_| zero.clone()).collect_vec();
-//     vec![&x_bits[n..32], &padding].concat()
-// }
-
-// fn xor3<'a, 'b: 'a, F: FieldExt>(
-//     ctx: &mut Context<'b, F>,
-//     gate: &FlexGateConfig<F>,
-//     a: &AssignedValue<'a, F>,
-//     b: &AssignedValue<'a, F>,
-//     c: &AssignedValue<'a, F>,
-// ) -> AssignedValue<'a, F> {
-//     // referece: https://github.com/iden3/circomlib/blob/v0.2.4/circuits/sha256/xor3.circom
-//     let mid = gate.mul(ctx, QuantumCell::Existing(&b), QuantumCell::Existing(&c));
-//     let mid_term = gate.mul_add(
-//         ctx,
-//         QuantumCell::Existing(&b),
-//         QuantumCell::Constant(-F::from(2u64)),
-//         QuantumCell::Constant(F::from(1u64)),
-//     );
-//     let mid_term = gate.mul_add(
-//         ctx,
-//         QuantumCell::Existing(&c),
-//         QuantumCell::Constant(-F::from(2u64)),
-//         QuantumCell::Existing(&mid_term),
-//     );
-//     let mid_term = gate.mul_add(
-//         ctx,
-//         QuantumCell::Existing(&mid),
-//         QuantumCell::Constant(F::from(4u64)),
-//         QuantumCell::Existing(&mid_term),
-//     );
-//     let b_c = gate.add(ctx, QuantumCell::Existing(&b), QuantumCell::Existing(&c));
-//     let add_term = gate.mul_add(
-//         ctx,
-//         QuantumCell::Existing(&mid),
-//         QuantumCell::Constant(-F::from(2u64)),
-//         QuantumCell::Existing(&b_c),
-//     );
-//     gate.mul_add(
-//         ctx,
-//         QuantumCell::Existing(&a),
-//         QuantumCell::Existing(&mid_term),
-//         QuantumCell::Existing(&add_term),
-//     )
-// }
 
 pub const NUM_ROUND: usize = 64;
 pub const NUM_STATE_WORD: usize = 8;

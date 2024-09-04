@@ -7,33 +7,33 @@ use halo2_base::{AssignedValue, Context};
 /// Instructions for RSA operations.
 pub trait RSAInstructions<F: PrimeField> {
     /// Assigns a [`AssignedRSAPublicKey`].
-    fn assign_public_key<'v>(
+    fn assign_public_key(
         &self,
         ctx: &mut Context<F>,
         public_key: RSAPublicKey<F>,
-    ) -> Result<AssignedRSAPublicKey<'v, F>, Error>;
+    ) -> Result<AssignedRSAPublicKey<F>, Error>;
 
     /// Assigns a [`AssignedRSASignature`].
-    fn assign_signature<'v>(
+    fn assign_signature(
         &self,
         ctx: &mut Context<F>,
         signature: RSASignature<F>,
-    ) -> Result<AssignedRSASignature<'v, F>, Error>;
+    ) -> Result<AssignedRSASignature<F>, Error>;
 
     /// Given a base `x`, a RSA public key (e,n), performs the modular power `x^e mod n`.
-    fn modpow_public_key<'v>(
+    fn modpow_public_key(
         &self,
         ctx: &mut Context<F>,
-        x: &AssignedBigUint<'v, F, Fresh>,
-        public_key: &AssignedRSAPublicKey<'v, F>,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error>;
+        x: &AssignedBigUint<F, Fresh>,
+        public_key: &AssignedRSAPublicKey<F>,
+    ) -> Result<AssignedBigUint<F, Fresh>, Error>;
 
     /// Given a RSA public key, a message hashed with SHA256, and a pkcs1v15 signature, verifies the signature with the public key and the hashed messaged.
-    fn verify_pkcs1v15_signature<'v>(
+    fn verify_pkcs1v15_signature(
         &self,
         ctx: &mut Context<F>,
-        public_key: &AssignedRSAPublicKey<'v, F>,
+        public_key: &AssignedRSAPublicKey<F>,
         hashed_msg: &[AssignedValue<F>],
-        signature: &AssignedRSASignature<'v, F>,
+        signature: &AssignedRSASignature<F>,
     ) -> Result<AssignedValue<F>, Error>;
 }

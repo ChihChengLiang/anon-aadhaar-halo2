@@ -1,4 +1,5 @@
 use super::utils::decompose_biguint;
+use crate::PrimeField;
 use crate::{AssignedBigUint, BigUintInstructions, Fresh, Muled, RangeType, RefreshAux};
 use halo2_base::halo2_proofs::{circuit::Region, circuit::Value, plonk::Error};
 use halo2_base::utils::fe_to_bigint;
@@ -9,7 +10,6 @@ use halo2_base::{
     utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint},
     AssignedValue, Context,
 };
-use halo2curves::ff::PrimeField;
 use halo2_ecc::bigint::{
     big_is_equal, big_is_zero, mul_no_carry, select, sub, FixedOverflowInteger, OverflowInteger,
 };
@@ -40,10 +40,10 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
 
     fn assign_integer<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
+        ctx: &mut Context<F>,
         value: Value<BigUint>,
         bit_len: usize,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         assert_eq!(bit_len % self.limb_bits, 0);
         let num_limbs = bit_len / self.limb_bits;
         let gate = self.gate();
@@ -64,11 +64,11 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
         Ok(AssignedBigUint::new(int, value))
     }
 
-    fn assign_constant<'v>(
+    fn assign_constant(
         &self,
-        ctx: &mut Context<'v, F>,
+        ctx: &mut Context<F>,
         value: BigUint,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         let num_limbs = self.num_limbs(&BigInt::from_biguint(Sign::Plus, value.clone()));
         let limbs = decompose_biguint::<F>(&value, num_limbs, self.limb_bits);
         let fixed_int = FixedOverflowInteger::construct(limbs);
@@ -76,21 +76,21 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
         Ok(AssignedBigUint::new(int, Value::known(value)))
     }
 
-    fn max_value<'v>(
+    fn max_value(
         &self,
-        ctx: &mut Context<'v, F>,
+        ctx: &mut Context<F>,
         num_limbs: usize,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         let value = (BigUint::from(1u64) << (self.limb_bits * num_limbs)) - BigUint::from(1u64);
         self.assign_constant(ctx, value)
     }
 
-    fn refresh<'v>(
+    fn refresh(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Muled>,
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Muled>,
         aux: &RefreshAux,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         // For converting `a` to a [`Fresh`] type integer, we decompose each limb of `a` into `self.limb_width`-bits values.
         assert_eq!(self.limb_bits, aux.limb_bits);
         // The i-th value of `aux.increased_limbs_vec` represents the number of increased values when converting i-th limb of `a` into `self.limb_width`-bits values.
@@ -148,11 +148,11 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Given a bit value `sel`, return `a` if `a`=1 and `b` otherwise.
     fn select<'v, T: RangeType>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, T>,
-        b: &AssignedBigUint<'v, F, T>,
-        sel: &AssignedValue<'v, F>,
-    ) -> Result<AssignedBigUint<'v, F, T>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, T>,
+        b: &AssignedBigUint<F, T>,
+        sel: &AssignedValue<F>,
+    ) -> Result<AssignedBigUint<F, T>, Error> {
         let int = select::assign(self.gate(), ctx, &a.int, &b.int, sel);
         let value = a
             .value
@@ -172,10 +172,10 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Given two inputs `a,b`, performs the addition `a + b`.
     fn add<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         let gate = self.gate();
         let range = self.range();
         let out_value = a.value.as_ref().zip(b.value.as_ref()).map(|(a, b)| a + b);
@@ -249,10 +249,10 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Otherwise, the bit is one.
     fn sub_unsafe<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<(AssignedBigUint<'v, F, Fresh>, AssignedValue<'v, F>), Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+    ) -> Result<(AssignedBigUint<F, Fresh>, AssignedValue<F>), Error> {
         let gate = self.gate();
         let n1 = a.num_limbs();
         let n2 = b.num_limbs();
@@ -276,10 +276,10 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
 
     fn mul<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedBigUint<'v, F, Muled>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedBigUint<F, Muled>, Error> {
         let gate = self.gate();
         let n1 = a.num_limbs();
         let n2 = b.num_limbs();
@@ -295,20 +295,20 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
 
     fn square<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedBigUint<'v, F, Muled>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedBigUint<F, Muled>, Error> {
         self.mul(ctx, a, a)
     }
 
     /// Given two inputs `a,b` and a modulus `n`, performs the modular addition `a + b mod n`.
     fn add_mod<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-        n: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+        n: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         // 1. Compute `a + b`.
         // 2. Compute `a + b - n`.
         // 3. If the subtraction is overflowed, i.e., `a + b < n`, returns `a + b`. Otherwise, returns `a + b - n`.
@@ -322,11 +322,11 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Given two inputs `a,b` and a modulus `n`, performs the modular subtraction `a - b mod n`.
     fn sub_mod<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-        n: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+        n: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         // 1. Compute `a - b`.
         // 2. Compute `(a + n) - b = a - b + n`.
         // 3. If the subtraction in 1 is overflowed, i.e., `a - b < 0`, returns `a - b + n`. Otherwise, returns `a - b`.
@@ -355,11 +355,11 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Before calling this function, you must assert that `a<n` and `b<n`.
     fn mul_mod<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-        n: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+        n: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         // The following constraints are designed with reference to AsymmetricMultiplierReducer template in https://github.com/jacksoom/circom-bigint/blob/master/circuits/mult.circom.
         // However, we do not regroup multiple limbs like the circom-bigint implementation because addition is not free, i.e., it makes constraints as well as multiplication, in the Plonk constraints system.
         // Besides, we use lookup tables to optimize range checks.
@@ -416,22 +416,22 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Given a input `a` and a modulus `n`, performs the modular square `a^2 mod n`.
     fn square_mod<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        n: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        n: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         self.mul_mod(ctx, a, a, n)
     }
 
     /// Given a base `a`, a variable exponent `e`, and a modulus `n`, performs the modular power `a^e mod n`.
     fn pow_mod<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        e: &AssignedValue<'v, F>,
-        n: &AssignedBigUint<'v, F, Fresh>,
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        e: &AssignedValue<F>,
+        n: &AssignedBigUint<F, Fresh>,
         exp_bits: usize,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         let gate = self.gate();
         let e_bits = gate.num_to_bits(ctx, e, exp_bits);
         let num_limbs = a.num_limbs();
@@ -439,7 +439,7 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
         let mut acc = self.assign_constant(ctx, BigUint::one())?;
         let zero = gate.load_zero(ctx);
         acc = acc.extend_limbs(num_limbs - acc.num_limbs(), zero);
-        let mut squared: AssignedBigUint<'v, F, Fresh> = a.clone();
+        let mut squared: AssignedBigUint<F, Fresh> = a.clone();
         for e_bit in e_bits.into_iter() {
             // Compute `acc * squared`.
             let muled = self.mul_mod(ctx, &acc, &squared, n)?;
@@ -454,11 +454,11 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Given a base `a`, a fixed exponent `e`, and a modulus `n`, performs the modular power `a^e mod n`.
     fn pow_mod_fixed_exp<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
         e: &BigUint,
-        n: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+        n: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         let num_limbs = a.num_limbs();
         assert_eq!(num_limbs, n.num_limbs());
         let num_e_bits = Self::bits_size(&BigInt::from_biguint(Sign::Plus, e.clone()));
@@ -476,7 +476,7 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
         let mut acc = self.assign_constant(ctx, BigUint::from(1usize))?;
         let zero = self.gate().load_zero(ctx);
         acc = acc.extend_limbs(num_limbs - acc.num_limbs(), zero);
-        let mut squared: AssignedBigUint<'v, F, Fresh> = a.clone();
+        let mut squared: AssignedBigUint<F, Fresh> = a.clone();
         for e_bit in e_bits.into_iter() {
             let cur_sq = squared;
             // Square `squared`.
@@ -493,9 +493,9 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Returns an assigned bit representing whether `a` is zero or not.
     fn is_zero<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &'v AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedValue<'v, F>, Error> {
+        ctx: &mut Context<F>,
+        a: &'v AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedValue<F>, Error> {
         let out = big_is_zero::assign(self.gate(), ctx, a.int_ref());
         Ok(out)
     }
@@ -503,22 +503,22 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Returns an assigned bit representing whether `a` and `b` are equivalent, whose [`RangeType`] is [`Fresh`].
     fn is_equal_fresh<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedValue<'v, F>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedValue<F>, Error> {
         Ok(big_is_equal::assign(self.gate(), ctx, &a.int, &b.int))
     }
 
     /// Returns an assigned bit representing whether `a` and `b` are equivalent, whose [`RangeType`] is [`Muled`].
     fn is_equal_muled<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Muled>,
-        b: &AssignedBigUint<'v, F, Muled>,
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Muled>,
+        b: &AssignedBigUint<F, Muled>,
         num_limbs_l: usize,
         num_limbs_r: usize,
-    ) -> Result<AssignedValue<'v, F>, Error> {
+    ) -> Result<AssignedValue<F>, Error> {
         // The following constraints are designed with reference to EqualWhenCarried template in https://github.com/jacksoom/circom-bigint/blob/master/circuits/mult.circom.
         // We use lookup tables to optimize range checks.
         let min_n = if num_limbs_r >= num_limbs_l {
@@ -613,10 +613,10 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Returns an assigned bit representing whether `a` is less than `b` (`a<b`).
     fn is_less_than<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedValue<'v, F>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedValue<F>, Error> {
         let (_, is_overfloe) = self.sub_unsafe(ctx, a, b)?;
         Ok(is_overfloe)
     }
@@ -624,10 +624,10 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Returns an assigned bit representing whether `a` is less than or equal to `b` (`a<=b`).
     fn is_less_than_or_equal<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedValue<'v, F>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedValue<F>, Error> {
         let is_less = self.is_less_than(ctx, a, b)?;
         let is_eq = self.is_equal_fresh(ctx, a, b)?;
         let gate = self.gate();
@@ -642,10 +642,10 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Returns an assigned bit representing whether `a` is greater than `b` (`a>b`).
     fn is_greater_than<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedValue<'v, F>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedValue<F>, Error> {
         let is_less_than_or_eq = self.is_less_than_or_equal(ctx, a, b)?;
         Ok(self
             .gate()
@@ -655,10 +655,10 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Returns an assigned bit representing whether `a` is greater than or equal to `b` (`a>=b`).
     fn is_greater_than_or_equal<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedValue<'v, F>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedValue<F>, Error> {
         let is_less_than = self.is_less_than(ctx, a, b)?;
         Ok(self.gate().not(ctx, QuantumCell::Existing(&is_less_than)))
     }
@@ -666,19 +666,19 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Returns an assigned bit representing whether `a` is in the order-`n` finite field.
     fn is_in_field<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        n: &AssignedBigUint<'v, F, Fresh>,
-    ) -> Result<AssignedValue<'v, F>, Error> {
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        n: &AssignedBigUint<F, Fresh>,
+    ) -> Result<AssignedValue<F>, Error> {
         self.is_less_than(ctx, a, n)
     }
 
     /// Assert that an assigned bit representing whether `a` and `b` are equivalent, whose [`RangeType`] is [`Fresh`].
     fn assert_equal_fresh<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
     ) -> Result<(), Error> {
         let result = self.is_equal_fresh(ctx, a, b)?;
         self.gate().assert_is_const(ctx, &result, F::one());
@@ -688,9 +688,9 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Assert that an assigned bit representing whether `a` and `b` are equivalent, whose [`RangeType`] is [`Fresh`].
     fn assert_equal_muled<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Muled>,
-        b: &AssignedBigUint<'v, F, Muled>,
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Muled>,
+        b: &AssignedBigUint<F, Muled>,
         num_limbs_l: usize,
         num_limbs_r: usize,
     ) -> Result<(), Error> {
@@ -702,9 +702,9 @@ impl<F: PrimeField> BigUintInstructions<F> for BigUintConfig<F> {
     /// Assert that an assigned bit representing whether `a` is in the order-`n` finite field.
     fn assert_in_field<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedBigUint<'v, F, Fresh>,
-        b: &AssignedBigUint<'v, F, Fresh>,
+        ctx: &mut Context<F>,
+        a: &AssignedBigUint<F, Fresh>,
+        b: &AssignedBigUint<F, Fresh>,
     ) -> Result<(), Error> {
         let result = self.is_in_field(ctx, a, b)?;
         self.gate().assert_is_const(ctx, &result, F::one());
@@ -723,7 +723,7 @@ impl<F: PrimeField> BigUintConfig<F> {
         Self { range, limb_bits }
     }
 
-    pub fn new_context<'a, 'b>(&'b self, region: Region<'a, F>) -> Context<'a, F> {
+    pub fn new_context<'a, 'b>(&'b self, region: Region<'a, F>) -> Context<F> {
         Context::new(
             region,
             ContextParams {
@@ -761,10 +761,10 @@ impl<F: PrimeField> BigUintConfig<F> {
     /// Panics if `n=0`.
     fn div_mod_unsafe<'v>(
         &self,
-        ctx: &mut Context<'v, F>,
-        a: &AssignedValue<'v, F>,
+        ctx: &mut Context<F>,
+        a: &AssignedValue<F>,
         b: &BigInt,
-    ) -> (AssignedValue<'v, F>, AssignedValue<'v, F>) {
+    ) -> (AssignedValue<F>, AssignedValue<F>) {
         let gate = self.gate();
         let (q_val, n_val) = a
             .value

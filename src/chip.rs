@@ -34,11 +34,11 @@ impl<F: PrimeField> RSAInstructions<F> for RSAConfig<F> {
     ///
     /// # Return values
     /// Returns a new [`AssignedRSAPublicKey`].
-    fn assign_public_key<'v>(
+    fn assign_public_key(
         &self,
         ctx: &mut Context<F>,
         public_key: RSAPublicKey<F>,
-    ) -> Result<AssignedRSAPublicKey<'v, F>, Error> {
+    ) -> Result<AssignedRSAPublicKey<F>, Error> {
         let biguint_config = self.biguint_config();
         let n = biguint_config.assign_integer(ctx, public_key.n, self.default_bits)?;
         let e = match public_key.e {
@@ -64,7 +64,7 @@ impl<F: PrimeField> RSAInstructions<F> for RSAConfig<F> {
         &self,
         ctx: &mut Context<F>,
         signature: RSASignature<F>,
-    ) -> Result<AssignedRSASignature<'v, F>, Error> {
+    ) -> Result<AssignedRSASignature<F>, Error> {
         let biguint_config = self.biguint_config();
         let c = biguint_config.assign_integer(ctx, signature.c, self.default_bits)?;
         Ok(AssignedRSASignature::new(c))
@@ -82,9 +82,9 @@ impl<F: PrimeField> RSAInstructions<F> for RSAConfig<F> {
     fn modpow_public_key<'v>(
         &self,
         ctx: &mut Context<F>,
-        x: &AssignedBigUint<'v, F, Fresh>,
-        public_key: &AssignedRSAPublicKey<'v, F>,
-    ) -> Result<AssignedBigUint<'v, F, Fresh>, Error> {
+        x: &AssignedBigUint<F, Fresh>,
+        public_key: &AssignedRSAPublicKey<F>,
+    ) -> Result<AssignedBigUint<F, Fresh>, Error> {
         let biguint_config = self.biguint_config();
         biguint_config.assert_in_field(ctx, x, &public_key.n)?;
         let powed = match &public_key.e {
@@ -111,9 +111,9 @@ impl<F: PrimeField> RSAInstructions<F> for RSAConfig<F> {
     fn verify_pkcs1v15_signature<'v>(
         &self,
         ctx: &mut Context<F>,
-        public_key: &AssignedRSAPublicKey<'v, F>,
+        public_key: &AssignedRSAPublicKey<F>,
         hashed_msg: &[AssignedValue<F>],
-        signature: &AssignedRSASignature<'v, F>,
+        signature: &AssignedRSASignature<F>,
     ) -> Result<AssignedValue<F>, Error> {
         assert_eq!(self.biguint_config.limb_bits(), 64);
         let gate = self.gate();
@@ -260,7 +260,7 @@ impl<F: PrimeField> RSAConfig<F> {
     }
 
     /// Return [`Context<F>`]
-    pub fn new_context<'a, 'b>(&'b self, region: Region<'a, F>) -> Context<'a, F> {
+    pub fn new_context<'a, 'b>(&'b self, region: Region<'a, F>) -> Context<F> {
         self.biguint_config.new_context(region)
     }
 

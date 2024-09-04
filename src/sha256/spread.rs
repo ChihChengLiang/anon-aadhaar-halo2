@@ -1,19 +1,14 @@
-use super::{utils::*, SpreadU32};
+use super::utils::*;
 use crate::PrimeField;
 use halo2_base::halo2_proofs::{
-    circuit::{AssignedCell, Cell, Layouter, Region, SimpleFloorPlanner, Value},
-    plonk::{
-        Advice, Circuit, Column, ConstraintSystem, Error, Expression, Fixed, Selector, TableColumn,
-        VirtualCells,
-    },
+    circuit::{Layouter, Value},
+    plonk::{Advice, Column, ConstraintSystem, Error, TableColumn},
     poly::Rotation,
 };
 use halo2_base::utils::decompose;
-use halo2_base::ContextParams;
 use halo2_base::QuantumCell;
 use halo2_base::{
     gates::{flex_gate::FlexGateConfig, range::RangeConfig, GateInstructions, RangeInstructions},
-    utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint, modulus},
     AssignedValue, Context,
 };
 use itertools::Itertools;
@@ -79,10 +74,10 @@ impl<F: PrimeField> SpreadConfig<F> {
 
     pub fn spread<'v: 'a, 'a>(
         &mut self,
-        ctx: &mut Context<'v, F>,
+        ctx: &mut Context<F>,
         range: &RangeConfig<F>,
         dense: &AssignedValue<F>,
-    ) -> Result<AssignedValue<'a, F>, Error> {
+    ) -> Result<AssignedValue<F>, Error> {
         let gate = range.gate();
         let limb_bits = self.num_bits_lookup;
         let num_limbs = 16 / limb_bits;
@@ -126,26 +121,12 @@ impl<F: PrimeField> SpreadConfig<F> {
         Ok(assigned_spread)
     }
 
-    // pub fn dense<'v: 'a, 'a>(
-    //     &mut self,
-    //     ctx: &mut Context<'v, F>,
-    //     range: &RangeConfig<F>,
-    //     spread: &AssignedValue<F>,
-    // ) -> Result<AssignedValue<'a, F>, Error> {
-    //     ctx.region.assign_advice(
-    //         || format!("spread at offset {}", self.row_offset),
-    //         self.dense,
-    //         self.row_offset,
-    //         || limb.value,
-    //     )?;
-    // }
-
     pub fn decompose_even_and_odd_unchecked<'v: 'a, 'a>(
         &self,
-        ctx: &mut Context<'v, F>,
+        ctx: &mut Context<F>,
         range: &RangeConfig<F>,
         spread: &AssignedValue<F>,
-    ) -> Result<(AssignedValue<'a, F>, AssignedValue<'a, F>), Error> {
+    ) -> Result<(AssignedValue<F>, AssignedValue<F>), Error> {
         let bits_val = spread.value().map(|val| fe_to_bits_le(val, 32));
         let even_bits_val = bits_val
             .as_ref()
@@ -199,10 +180,10 @@ impl<F: PrimeField> SpreadConfig<F> {
 
     fn spread_limb<'v: 'a, 'a>(
         &mut self,
-        ctx: &mut Context<'v, F>,
+        ctx: &mut Context<F>,
         gate: &FlexGateConfig<F>,
         limb: &AssignedValue<F>,
-    ) -> Result<AssignedValue<'a, F>, Error> {
+    ) -> Result<AssignedValue<F>, Error> {
         let column_idx = self.num_limb_sum % self.num_advice_columns;
         let assigned_dense_cell = ctx.region.assign_advice(
             || format!("dense at offset {}", self.row_offset),

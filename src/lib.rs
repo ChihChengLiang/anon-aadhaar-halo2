@@ -72,7 +72,7 @@ pub enum RSAPubE {
 
 /// A parameter `e` in the assigned RSA public key.
 #[derive(Clone, Debug)]
-pub enum AssignedRSAPubE<'v, F: PrimeField> {
+pub enum AssignedRSAPubE<F: PrimeField> {
     /// A variable parameter `e`.
     Var(AssignedValue<F>),
     /// A fixed parameter `e`.
@@ -119,14 +119,14 @@ impl<F: PrimeField> RSAPublicKey<F> {
 
 /// An assigned RSA public key.
 #[derive(Clone, Debug)]
-pub struct AssignedRSAPublicKey<'v, F: PrimeField> {
+pub struct AssignedRSAPublicKey<F: PrimeField> {
     /// a modulus parameter
-    pub n: AssignedBigUint<'v, F, Fresh>,
+    pub n: AssignedBigUint<F, Fresh>,
     /// an exponent parameter
-    pub e: AssignedRSAPubE<'v, F>,
+    pub e: AssignedRSAPubE<F>,
 }
 
-impl<'v, F: PrimeField> AssignedRSAPublicKey<'v, F> {
+impl<F: PrimeField> AssignedRSAPublicKey<F> {
     /// Creates new [`AssignedRSAPublicKey`] from assigned `n` and `e`.
     ///
     /// # Arguments
@@ -135,7 +135,7 @@ impl<'v, F: PrimeField> AssignedRSAPublicKey<'v, F> {
     ///
     /// # Return values
     /// Returns new [`AssignedRSAPublicKey`].
-    pub fn new(n: AssignedBigUint<'v, F, Fresh>, e: AssignedRSAPubE<'v, F>) -> Self {
+    pub fn new(n: AssignedBigUint<F, Fresh>, e: AssignedRSAPubE<F>) -> Self {
         Self { n, e }
     }
 }
@@ -168,12 +168,12 @@ impl<F: PrimeField> RSASignature<F> {
 
 /// An assigned RSA signature.
 #[derive(Clone, Debug)]
-pub struct AssignedRSASignature<'v, F: PrimeField> {
+pub struct AssignedRSASignature<F: PrimeField> {
     /// an integer of the signature.
-    pub c: AssignedBigUint<'v, F, Fresh>,
+    pub c: AssignedBigUint<F, Fresh>,
 }
 
-impl<'v, F: PrimeField> AssignedRSASignature<'v, F> {
+impl<'v, F: PrimeField> AssignedRSASignature<F> {
     /// Creates new [`AssignedRSASignature`] from its assigned integer.
     ///
     /// # Arguments
@@ -181,7 +181,7 @@ impl<'v, F: PrimeField> AssignedRSASignature<'v, F> {
     ///
     /// # Return values
     /// Returns new [`AssignedRSASignature`].
-    pub fn new(c: AssignedBigUint<'v, F, Fresh>) -> Self {
+    pub fn new(c: AssignedBigUint<F, Fresh>) -> Self {
         Self { c }
     }
 }
@@ -222,11 +222,11 @@ impl<F: PrimeField> RSASignatureVerifier<F> {
     /// Otherwise, the bit is equivalent to zero.
     pub fn verify_pkcs1v15_signature<'a, 'b: 'a>(
         &'a mut self,
-        ctx: &mut Context<'b, F>,
-        public_key: &AssignedRSAPublicKey<'b, F>,
+        ctx: &mut Context<F>,
+        public_key: &AssignedRSAPublicKey<F>,
         msg: &'a [u8],
-        signature: &AssignedRSASignature<'b, F>,
-    ) -> Result<(AssignedValue<'b, F>, Vec<AssignedValue<'b, F>>), Error> {
+        signature: &AssignedRSASignature<F>,
+    ) -> Result<(AssignedValue<F>, Vec<AssignedValue<F>>), Error> {
         let sha256 = &mut self.sha256_config;
         let rsa = self.rsa_config.clone();
         let biguint = &rsa.biguint_config();
