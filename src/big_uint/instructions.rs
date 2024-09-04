@@ -2,7 +2,8 @@ use crate::{AssignedBigUint, Fresh, Muled, RangeType, RefreshAux};
 use halo2_base::gates::{flex_gate::FlexGateConfig, range::RangeConfig};
 use halo2_base::halo2_proofs::circuit::Value;
 use halo2_base::halo2_proofs::plonk::Error;
-use halo2_base::{utils::PrimeField, AssignedValue, Context};
+use halo2_base::{AssignedValue, Context};
+use halo2curves::ff::PrimeField;
 use num_bigint::BigUint;
 
 /// Instructions for big-integer operations.

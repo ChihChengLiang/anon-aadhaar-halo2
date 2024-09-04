@@ -1,4 +1,5 @@
-use halo2_base::utils::{decompose_biguint as _decompose_biguint, PrimeField};
+use halo2_base::utils::decompose_biguint as _decompose_biguint;
+use halo2curves::ff::PrimeField;
 use num_bigint::{BigInt, BigUint};
 use num_traits::Signed;
 

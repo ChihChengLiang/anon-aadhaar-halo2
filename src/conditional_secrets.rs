@@ -1,10 +1,9 @@
+use crate::PrimeField;
 use halo2_base::halo2_proofs::circuit::{Layouter, SimpleFloorPlanner, Value};
 use halo2_base::halo2_proofs::plonk::{
     Advice, Circuit, Column, ConstraintSystem, Error, Expression, Selector,
 };
 use halo2_base::halo2_proofs::poly::Rotation;
-use halo2_base::utils::PrimeField;
-//use std::sync::Arc;
 
 #[derive(Default, Clone)]
 pub struct IdentityCircuit {
@@ -72,6 +71,7 @@ impl IdentityCircuit {
 }
 
 impl<F: PrimeField> Circuit<F> for IdentityCircuit {
+    type Params = ();
     type Config = IdentityConfig;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -298,7 +298,7 @@ impl<F: PrimeField> Circuit<F> for IdentityCircuit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::halo2_proofs::{dev::MockProver, halo2curves::pasta::Fp};
+    use halo2_base::halo2_proofs::dev::MockProver;
 
     #[test]
     fn test_identity_circuit() {
@@ -320,159 +320,7 @@ mod tests {
             qr_data_state: Some(vec![10, 11, 12, 13, 14]),
         };
 
-        let prover: MockProver<Fp> = MockProver::run(k, &circuit, vec![]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
-
-        // Test case where reveal_age_above_18 is false
-        /*let circuit = IdentityCircuit {
-            reveal_age_above_18: Some(false),
-            age_above_18: Some(0),
-            qr_data_age_above_18: Some(1),
-            reveal_gender: Some(true),
-            gender: Some(1),
-            qr_data_gender: Some(1),
-            reveal_pincode: Some(true),
-            pincode: Some(123456),
-            qr_data_pincode: Some(123456),
-            reveal_state: Some(true),
-            state: Some(1),
-            qr_data_state: Some(1),
-        };
-
-        let prover: MockProver<Fp> = MockProver::run(k, &circuit, vec![]).unwrap();
-        assert_eq!(prover.verify(), Ok(()));
-
-        // Test case where the constraint should fail due to age_above_18
-        let circuit = IdentityCircuit {
-            reveal_age_above_18: Some(true),
-            age_above_18: Some(0), // This should fail because age_above_18 should be 1
-            qr_data_age_above_18: Some(1),
-            reveal_gender: Some(true),
-            gender: Some(1),
-            qr_data_gender: Some(1),
-            reveal_pincode: Some(true),
-            pincode: Some(123456),
-            qr_data_pincode: Some(123456),
-            reveal_state: Some(true),
-            state: Some(1),
-            qr_data_state: Some(1),
-        };
-
-        let prover: MockProver<Fp> = MockProver::run(k, &circuit, vec![]).unwrap();
-        assert!(prover.verify().is_err());
-
-        // Test case where the constraint should fail due to gender
-        let circuit = IdentityCircuit {
-            reveal_age_above_18: Some(true),
-            age_above_18: Some(1),
-            qr_data_age_above_18: Some(1),
-            reveal_gender: Some(true),
-            gender: Some(0), // This should fail because gender should be 1
-            qr_data_gender: Some(1),
-            reveal_pincode: Some(true),
-            pincode: Some(123456),
-            qr_data_pincode: Some(123456),
-            reveal_state: Some(true),
-            state: Some(1),
-            qr_data_state: Some(1),
-        };
-
-        let prover: MockProver<Fp> = MockProver::run(k, &circuit, vec![]).unwrap();
-        assert!(prover.verify().is_err());
-
-        // Test case where the constraint should fail due to pincode
-        let circuit = IdentityCircuit {
-            reveal_age_above_18: Some(true),
-            age_above_18: Some(1),
-            qr_data_age_above_18: Some(1),
-            reveal_gender: Some(true),
-            gender: Some(1),
-            qr_data_gender: Some(1),
-            reveal_pincode: Some(true),
-            pincode: Some(654321), // This should fail because pincode should be 123456
-            qr_data_pincode: Some(123456),
-            reveal_state: Some(true),
-            state: Some(4),
-            qr_data_state: Some(1),
-        };
-
-        let prover: MockProver<Fp> = MockProver::run(k, &circuit, vec![]).unwrap();
-        assert!(prover.verify().is_err());
-
-        // Test case where the constraint should fail due to state
-        let circuit = IdentityCircuit {
-            reveal_age_above_18: Some(true),
-            age_above_18: Some(1),
-            qr_data_age_above_18: Some(1),
-            reveal_gender: Some(true),
-            gender: Some(1),
-            qr_data_gender: Some(1),
-            reveal_pincode: Some(true),
-            pincode: Some(123456),
-            qr_data_pincode: Some(123456),
-            reveal_state: Some(true),
-            state: Some(4), // This should fail because state should be 1
-            qr_data_state: Some(1),
-        };
-
-        let prover: MockProver<Fp> = MockProver::run(k, &circuit, vec![]).unwrap();
-        assert!(prover.verify().is_err());
-
-        // Test case where the reveal_gender is false
-        let circuit = IdentityCircuit {
-            reveal_age_above_18: Some(true),
-            age_above_18: Some(1),
-            qr_data_age_above_18: Some(1),
-            reveal_gender: Some(false),
-            gender: Some(1),
-            qr_data_gender: Some(1),
-            reveal_pincode: Some(false),
-            pincode: Some(123456),
-            qr_data_pincode: Some(123456),
-            reveal_state: Some(true),
-            state: Some(1),
-            qr_data_state: Some(1),
-        };
-
-        let prover: MockProver<Fp> = MockProver::run(k, &circuit, vec![]).unwrap();
-        assert!(prover.verify().is_ok());
-
-        // Test case where the reveal_pincode is false
-        let circuit = IdentityCircuit {
-            reveal_age_above_18: Some(true),
-            age_above_18: Some(1),
-            qr_data_age_above_18: Some(1),
-            reveal_gender: Some(true),
-            gender: Some(1),
-            qr_data_gender: Some(1),
-            reveal_pincode: Some(false),
-            pincode: Some(123456),
-            qr_data_pincode: Some(123456),
-            reveal_state: Some(true),
-            state: Some(1),
-            qr_data_state: Some(1),
-        };
-
-        let prover: MockProver<Fp> = MockProver::run(k, &circuit, vec![]).unwrap();
-        assert!(prover.verify().is_ok());
-
-        // Test case where the reveal_state is false
-        let circuit = IdentityCircuit {
-            reveal_age_above_18: Some(true),
-            age_above_18: Some(1),
-            qr_data_age_above_18: Some(1),
-            reveal_gender: Some(true),
-            gender: Some(1),
-            qr_data_gender: Some(1),
-            reveal_pincode: Some(false),
-            pincode: Some(123456),
-            qr_data_pincode: Some(123456),
-            reveal_state: Some(false),
-            state: Some(1),
-            qr_data_state: Some(1),
-        };
-
-        let prover: MockProver<Fp> = MockProver::run(k, &circuit, vec![]).unwrap();
-        assert!(prover.verify().is_ok());*/
     }
 }

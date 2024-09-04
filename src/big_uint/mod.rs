@@ -5,14 +5,15 @@ pub use chip::*;
 pub use instructions::*;
 pub use utils::*;
 
-use halo2_base::{halo2_proofs::circuit::Value, utils::PrimeField, AssignedValue};
+use halo2_base::{halo2_proofs::circuit::Value, AssignedValue};
 use halo2_ecc::bigint::OverflowInteger;
+use halo2curves::ff::PrimeField;
 use num_bigint::BigUint;
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
 pub struct AssignedBigUint<'v, F: PrimeField, T: RangeType> {
-    int: OverflowInteger<'v, F>,
+    int: OverflowInteger<F>,
     value: Value<BigUint>,
     _t: PhantomData<T>,
 }

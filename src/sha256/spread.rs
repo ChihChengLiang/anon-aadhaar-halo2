@@ -1,7 +1,5 @@
-use std::marker::PhantomData;
-
-use crate::{utils::*, SpreadU32};
-use halo2_base::halo2_proofs::halo2curves::FieldExt;
+use super::{utils::*, SpreadU32};
+use crate::PrimeField;
 use halo2_base::halo2_proofs::{
     circuit::{AssignedCell, Cell, Layouter, Region, SimpleFloorPlanner, Value},
     plonk::{
@@ -15,12 +13,11 @@ use halo2_base::ContextParams;
 use halo2_base::QuantumCell;
 use halo2_base::{
     gates::{flex_gate::FlexGateConfig, range::RangeConfig, GateInstructions, RangeInstructions},
-    utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint, modulus, PrimeField},
+    utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint, modulus},
     AssignedValue, Context,
 };
-use hex;
 use itertools::Itertools;
-use num_bigint::BigUint;
+use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
 pub struct SpreadConfig<F: PrimeField> {

@@ -6,9 +6,10 @@ use halo2_base::ContextParams;
 use halo2_base::QuantumCell;
 use halo2_base::{
     gates::{flex_gate::FlexGateConfig, range::RangeConfig, GateInstructions, RangeInstructions},
-    utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint, PrimeField},
+    utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint},
     AssignedValue, Context,
 };
+use halo2curves::ff::PrimeField;
 use halo2_ecc::bigint::{
     big_is_equal, big_is_zero, mul_no_carry, select, sub, FixedOverflowInteger, OverflowInteger,
 };

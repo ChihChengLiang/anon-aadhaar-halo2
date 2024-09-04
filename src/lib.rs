@@ -6,7 +6,7 @@
 //!
 //! In addition to [`RSAConfig`], this library also provides a high-level circuit implementation to verify pkcs1v15 signatures, [`RSASignatureVerifier`].  
 //! The verification function in [`RSAConfig`] requires as input a hashed message, whereas the function in [`RSASignatureVerifier`] computes a SHA256 hash of the given message and verifies the given signature for that hash.
-
+#![feature(trait_alias)]
 #![feature(more_qualified_paths)]
 
 use std::time::Instant;
@@ -15,15 +15,17 @@ pub use big_uint::*;
 use rsa::RsaPrivateKey;
 use std::marker::PhantomData;
 
-use halo2_base::halo2_proofs::{
-    circuit::{Cell, Layouter, SimpleFloorPlanner, Value},
-    plonk::{Circuit, Column, ConstraintSystem, Error, Instance},
+use halo2_base::{
+    halo2_proofs::{
+        circuit::{Cell, Layouter, SimpleFloorPlanner, Value},
+        plonk::{Circuit, Column, ConstraintSystem, Error, Instance},
+    },
+    utils::ScalarField,
 };
 
 use halo2_base::{gates::range::RangeStrategy::Vertical, QuantumCell, SKIP_FIRST_PASS};
 use halo2_base::{
     gates::{range::RangeConfig, GateInstructions},
-    utils::PrimeField,
     AssignedValue, Context,
 };
 use num_bigint::BigUint;
@@ -35,6 +37,10 @@ use rsa::{
     RsaPublicKey,
 };
 
+use halo2curves::ff::PrimeField as Halo2CurvesPrimeField;
+
+pub(crate) trait PrimeField = Halo2CurvesPrimeField + ScalarField;
+
 mod qr_data_extractor;
 //pub mod poseidon;
 //mod aadhaar_verifier_circuit;
@@ -42,15 +48,6 @@ pub mod timestamp;
 //pub mod nullifier;
 pub mod conditional_secrets;
 pub mod signal;
-/*mod extractors{
-    pub mod extractor;
-    pub mod timstamp_extractor;
-    pub mod age_extractor;
-    pub mod gender_extractor;
-    pub mod pincode_extractor;
-    pub mod photo_extractor;
-    pub mod qrdata_extractor;
-}*/
 
 use crate::conditional_secrets::IdentityCircuit;
 use crate::signal::SquareCircuit;
@@ -60,12 +57,9 @@ use poseidon::Poseidon;
 mod chip;
 mod instructions;
 pub use chip::*;
-#[cfg(feature = "sha256")]
-pub use halo2_dynamic_sha256;
-#[cfg(feature = "sha256")]
-use halo2_dynamic_sha256::Sha256DynamicConfig;
+pub mod sha256;
 pub use instructions::*;
-#[cfg(feature = "sha256")]
+use sha256::Sha256DynamicConfig;
 
 /// A parameter `e` in the RSA public key that is about to be assigned.
 #[derive(Clone, Debug)]
@@ -80,7 +74,7 @@ pub enum RSAPubE {
 #[derive(Clone, Debug)]
 pub enum AssignedRSAPubE<'v, F: PrimeField> {
     /// A variable parameter `e`.
-    Var(AssignedValue<'v, F>),
+    Var(AssignedValue<F>),
     /// A fixed parameter `e`.
     Fix(BigUint),
 }
@@ -192,7 +186,6 @@ impl<'v, F: PrimeField> AssignedRSASignature<'v, F> {
     }
 }
 
-#[cfg(feature = "sha256")]
 /// A circuit implementation to verify pkcs1v15 signatures.
 #[derive(Clone, Debug)]
 pub struct RSASignatureVerifier<F: PrimeField> {
@@ -200,7 +193,6 @@ pub struct RSASignatureVerifier<F: PrimeField> {
     sha256_config: Sha256DynamicConfig<F>,
 }
 
-#[cfg(feature = "sha256")]
 impl<F: PrimeField> RSASignatureVerifier<F> {
     /// Creates new [`RSASignatureVerifier`] from [`RSAChip`] and [`Sha256BitChip`].
     ///
@@ -305,6 +297,7 @@ impl<F: PrimeField> TestRSASignatureWithHashCircuit1<F> {
 }
 
 impl<F: PrimeField> Circuit<F> for TestRSASignatureWithHashCircuit1<F> {
+    type Params = ();
     type Config = TestRSASignatureWithHashConfig1<F>;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -416,7 +409,6 @@ impl<F: PrimeField> Circuit<F> for TestRSASignatureWithHashCircuit1<F> {
     }
 }
 
-#[cfg(feature = "sha256")]
 #[cfg(test)]
 mod test {
     use super::*;

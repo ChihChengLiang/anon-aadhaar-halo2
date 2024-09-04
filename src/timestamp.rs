@@ -1,10 +1,8 @@
+use crate::PrimeField;
 use halo2_base::halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner, Value},
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Selector},
 };
-//use std::sync::Arc;
-
-use halo2_base::utils::PrimeField;
 
 #[derive(Debug, Clone, Default)]
 pub struct TimestampCircuit<F: PrimeField> {
@@ -49,6 +47,7 @@ impl<F: PrimeField> TimestampCircuit<F> {
 }
 
 impl<F: PrimeField> Circuit<F> for TimestampCircuit<F> {
+    type Params = ();
     type Config = TimestampConfig;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -66,65 +65,6 @@ impl<F: PrimeField> Circuit<F> for TimestampCircuit<F> {
         let minute = meta.advice_column();
         let second = meta.advice_column();
         let timestamp = meta.advice_column();
-
-        // Constraints to ensure the inputs are within valid ranges
-        /*meta.create_gate("year range", |meta| {
-            let sel = meta.query_selector(sel);
-            let year = meta.query_advice(year, Rotation::cur());
-
-            vec![
-                sel.clone() * (year.clone() - Constant(F::from(1970))),
-                sel.clone() * (Constant(F::from(2100)) - year.clone()), // assuming max year as 2100
-            ]
-        });*/
-
-        /*meta.create_gate("month range", |meta| {
-            let sel = meta.query_selector(sel);
-            let month = meta.query_advice(month, Rotation::cur());
-            let min_month = F::one();
-            //let max_month = F::from(12u64);
-
-            vec![
-                sel.clone() * (month.clone() - Expression::Constant(min_month.clone())),
-                //sel.clone() * (Constant(max_month) - month.clone()),
-            ]
-        });*/
-
-        /*meta.create_gate("day range", |meta| {
-            let sel = meta.query_selector(sel);
-            let day = meta.query_advice(day, Rotation::cur());
-
-            vec![
-                sel * (day.clone() - Constant(F::from(1))) * (Constant(F::from(31)) - day),
-            ]
-        });
-
-        meta.create_gate("hour range", |meta| {
-            let sel = meta.query_selector(sel);
-            let hour = meta.query_advice(hour, Rotation::cur());
-
-            vec![
-                sel * (hour.clone() - Constant(F::from(0))) * (Constant(F::from(23)) - hour),
-            ]
-        });
-
-        meta.create_gate("minute range", |meta| {
-            let sel = meta.query_selector(sel);
-            let minute = meta.query_advice(minute, Rotation::cur());
-
-            vec![
-                sel * (minute.clone() - Constant(F::from(0))) * (Constant(F::from(59)) - minute),
-            ]
-        });
-
-        meta.create_gate("second range", |meta| {
-            let sel = meta.query_selector(sel);
-            let second = meta.query_advice(second, Rotation::cur());
-
-            vec![
-                sel * (second.clone() - Constant(F::from(0))) * (Constant(F::from(59)) - second),
-            ]
-        });*/
 
         TimestampConfig {
             sel,
@@ -255,18 +195,18 @@ impl<F: PrimeField> Circuit<F> for TimestampCircuit<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::halo2_proofs::{dev::MockProver, halo2curves::pasta::Fp};
+    use halo2_base::halo2_proofs::{dev::MockProver, halo2curves::bn256::Fq};
 
     #[test]
     fn test_timestamp_circuit() {
         let k = 6;
         let circuit = TimestampCircuit {
-            year: Some(Fp::from(2023u64)),
-            month: Some(Fp::from(7u64)),
-            day: Some(Fp::from(8u64)),
-            hour: Some(Fp::from(12u64)),
-            minute: Some(Fp::from(34u64)),
-            second: Some(Fp::from(56u64)),
+            year: Some(Fq::from(2023u64)),
+            month: Some(Fq::from(7u64)),
+            day: Some(Fq::from(8u64)),
+            hour: Some(Fq::from(12u64)),
+            minute: Some(Fq::from(34u64)),
+            second: Some(Fq::from(56u64)),
         };
 
         let public_inputs = vec![];

@@ -17,7 +17,6 @@ use halo2_base::{
     utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint, modulus, PrimeField},
     AssignedValue, Context,
 };
-use hex;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 

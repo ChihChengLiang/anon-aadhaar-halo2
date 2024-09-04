@@ -2,12 +2,8 @@ mod compression;
 pub(crate) mod spread;
 pub(crate) mod utils;
 pub use compression::*;
-// pub use eth_types::Field;
-// pub use zkevm_circuits::sha256_circuit::{
-//     sha256_compression::{Sha256AssignedRows, Sha256CompressionConfig},
-//     util::H,
-// };
 
+use crate::PrimeField;
 use generic_array::GenericArray;
 use halo2_base::halo2_proofs::{
     circuit::{AssignedCell, Cell, Layouter, Region, SimpleFloorPlanner, Value},
@@ -22,12 +18,12 @@ use halo2_base::ContextParams;
 use halo2_base::QuantumCell;
 use halo2_base::{
     gates::{flex_gate::FlexGateConfig, range::RangeConfig, GateInstructions, RangeInstructions},
-    utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint, modulus, PrimeField},
+    utils::{bigint_to_fe, biguint_to_fe, fe_to_biguint, modulus},
     AssignedValue, Context,
 };
 use hex;
 use itertools::Itertools;
-use sha2::{compress256, Digest, Sha256};
+use sha2::{compress256, digest::generic_array, Digest, Sha256};
 use spread::SpreadConfig;
 
 // const Sha256BitChipRowPerRound: usize = 72;
@@ -36,9 +32,9 @@ use spread::SpreadConfig;
 
 #[derive(Debug, Clone)]
 pub struct AssignedHashResult<'a, F: PrimeField> {
-    pub input_len: AssignedValue<'a, F>,
-    pub input_bytes: Vec<AssignedValue<'a, F>>,
-    pub output_bytes: Vec<AssignedValue<'a, F>>,
+    pub input_len: AssignedValue<F>,
+    pub input_bytes: Vec<AssignedValue<F>>,
+    pub output_bytes: Vec<AssignedValue<F>>,
 }
 
 #[derive(Debug, Clone)]

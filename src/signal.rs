@@ -3,7 +3,9 @@ use halo2_base::halo2_proofs::{
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Selector},
     poly::Rotation,
 };
-use halo2_base::utils::PrimeField;
+
+use crate::PrimeField;
+
 //use std::sync::Arc;
 
 #[derive(Clone, Debug)]
@@ -19,6 +21,7 @@ pub struct SquareCircuit<F: PrimeField> {
 }
 
 impl<F: PrimeField> Circuit<F> for SquareCircuit<F> {
+    type Params = ();
     type Config = SquareConfig;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -89,7 +92,8 @@ impl<F: PrimeField> SquareCircuit<F> {
 #[cfg(test)]
 mod tests {
     use halo2_base::halo2_proofs::dev::MockProver;
-    use halo2_base::halo2_proofs::halo2curves::pasta::Fp;
+    use halo2_base::halo2_proofs::halo2curves::bn256::Fq;
+
     #[test]
     fn test_square_circuit() {
         use super::*;
@@ -97,10 +101,10 @@ mod tests {
         let signal_hash = 5;
 
         let circuit = SquareCircuit {
-            signal_hash: Value::known(Fp::from(signal_hash)),
+            signal_hash: Value::known(Fq::from(signal_hash)),
         };
 
-        let public_inputs = vec![Fp::from(signal_hash * signal_hash)];
+        let public_inputs = vec![Fq::from(signal_hash * signal_hash)];
 
         let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
         prover.assert_satisfied();
